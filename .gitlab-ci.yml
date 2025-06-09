@@ -1,0 +1,155 @@
+# .gitlab-ci.yml
+# Defines the CI/CD stages
+stages:
+  - deploy
+
+# Global variables used across jobs
+variables:
+  # Variables for the Development environment
+  DEPLOYMENT_PATH_DEV: "/home/development/Backend"
+  DOCKER_COMPOSE_PATH_DEV: "/home/development/Backend/docker/development"
+
+  # Variables for the Production environment
+  DEPLOYMENT_PATH_MAIN: "/home/production/Backend"
+  DOCKER_COMPOSE_PATH_MAIN: "/home/production/Backend/docker/production"
+  # GIT_CLONE_URL: "$CI_REPOSITORY_URL"
+
+# Job definition for deploying to the Development environment
+deploy_dev:
+  stage: deploy # Assigns this job to the 'deploy' stage
+  only:
+    - dev # This job only runs for commits/merges to the 'dev' branch
+  tags:
+    - self-hosted  # Specifies that this job must run on a runner with the 'self-hosted' tag
+    # before_script:
+    #   # install ssh client if needed
+    #   - mkdir -p ~/.ssh
+    #   - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    #   - chmod 600 ~/.ssh/id_rsa
+    #   - eval "$(ssh-agent -s)"
+    #   - ssh-add ~/.ssh/id_rsa
+    #   - ssh-keyscan -H gitlab.com >> ~/.ssh/known_hosts
+    #   # switch your remote URL to SSH
+    #   - git remote set-url origin git@gitlab.com:great4844911/Backend.git
+  before_script:
+    # - cd "$DEPLOYMENT_PATH_DEV"
+    # - chmod -R a+rwX .git
+    # - export GIT_CLONE_URL="https://oauth2:${PERSONAL_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+    # - echo "Using GIT_CLONE_URL = $GIT_CLONE_URL"
+    # - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+    # - echo "Running as user: $(whoami)"
+    # - echo "Ensuring deployment directory exists: $DEPLOYMENT_PATH_DEV"
+    - echo "Attempting to set ownership for $DEPLOYMENT_PATH_DEV to gitlab-runner"
+    - sudo chown -R gitlab-runner:gitlab-runner "$DEPLOYMENT_PATH_DEV"
+    # 3. Grant read, write, and execute permissions to the owner (gitlab-runner).
+    - sudo chmod -R u+rwX "$DEPLOYMENT_PATH_DEV"
+    # 4. Add the deployment path to git's safe directories.
+    - git config --global --add safe.directory "$DEPLOYMENT_PATH_DEV"
+    - chown -R gitlab-runner:gitlab-runner /home/gitlab-runner/builds/pQ45YSEhB
+    - chmod -R u+rwx /home/gitlab-runner/builds/pQ45YSEhB
+    - mkdir -p "$DEPLOYMENT_PATH_DEV"
+    # - echo "Setting safe directory for deployment path: $DEPLOYMENT_PATH_DEV"
+    - git config --global --add safe.directory "$DEPLOYMENT_PATH_DEV"
+    # It's also good to ensure the runner's build directory is safe,
+    # though this might be tricky to get the exact path dynamically here for global config.
+    # GitLab Runner should ideally handle its own build directory's safety.
+    # If needed, you could add the generic builds path if known and stable:
+    # - git config --global --add safe.directory "/home/gitlab-runner/builds" # Or a more specific parent
+    - cd "$DEPLOYMENT_PATH_DEV"
+    - echo "Attempting to set permissions for .git in $DEPLOYMENT_PATH_DEV (if it exists)"
+    # - if [ -d ".git" ]; then chmod -R u+rwX .git; fi
+    # Changed to u+rwX for owner, safer than a+rwX
+    # Or ensure gitlab-runner user owns this.
+    # If using a Personal Access Token (PAT) for cloning/pulling into the DEPLOYMENT_PATH_DEV
+    # Ensure PERSONAL_ACCESS_TOKEN is a protected CI/CD variable
+    # - git remote set-url origin "https://oauth2:${PERSONAL_ACCESS_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+    # Using CI_JOB_TOKEN is generally preferred if permissions allow:
+    - git remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.com/${CI_PROJECT_PATH}.git"
+
+  script: # The sequence of commands to execute for this job
+    - echo "Deploying to development environment..."
+    - whoami
+    - pwd
+    - mkdir -p /home/development/Backend
+    - cd "$DEPLOYMENT_PATH_DEV" # Change directory to the deployment path
+    - echo "Checking if the repository exists, if not clone it, otherwise pull..."
+    # Multi-line script block to handle git operations
+    - |
+      if [ -d ".git" ]; then # Check if a .git directory exists (repo already cloned)
+        echo "Repository already exists, pulling changes..."
+        git config --global --add safe.directory /home/gitlab-runner/builds/bzoxCnA6M/0/great4844911/Backend
+
+        git config --global --add safe.directory /home/development/Backend
+        git status # Show current Git status for debugging
+        git fetch --all # Fetch all branches and updates from the remote
+        git branch -a # List all local and remote branches for debugging
+        git checkout dev # Ensure we are on the dev branch
+        git pull --rebase origin dev # Pull the latest changes from the remote dev branch
+      else
+        echo "Repository does not exist, cloning..."
+        # Clone the specific branch ('dev') of the repository into the current directory
+        git clone -b dev git@gitlab.com:$CI_PROJECT_PATH.git .
+      fi
+    # - echo "Repository updated."
+    # - cd "$DOCKER_COMPOSE_PATH_DEV" # Change directory to where the docker-compose file is
+    # - echo "Stopping existing Docker Compose services (if any)..."
+    # # Stop and remove containers defined in the docker-compose file. '|| true' prevents failure if no containers are running.
+    # - docker compose down || true
+    # - echo "Building and starting Docker Compose services..."
+    # # Build images (if necessary) and start services in detached mode (-d)
+    # - docker compose up --build -d
+    # - echo "Deployment to development environment complete."
+    - echo "Repository updated."
+    - cd "$DOCKER_COMPOSE_PATH_DEV"  # Change directory to where the docker-compose file is located
+    - echo "Checking if Docker Compose containers are up..."
+    - |
+      CONTAINERS=$(docker compose ps -q)
+      if [ -n "$CONTAINERS" ]; then
+        echo "Containers are running. Bringing them down..."
+        docker compose down
+      else
+        echo "No running containers found. Proceeding to start services..."
+      fi
+    - echo "Building and starting Docker Compose services..."
+    - docker compose up --build -d
+    - echo "Deployment to development environment complete."
+  after_script:
+      - echo
+      - echo "=== Docker Compose Container Statuses ==="
+      - cd "$DOCKER_COMPOSE_PATH_DEV" 
+      # List each service/container name along with its status
+      - docker compose ps --format "table {{.Name}}\t{{.State}}"
+      - echo "========================================"
+
+# Job definition for deploying to the Production environment
+deploy_main:
+  stage: deploy # Assigns this job to the 'deploy' stage
+  only:
+    - main # This job only runs for commits/merges to the 'main' branch
+  tags:
+    - self-hosted  # Specifies that this job must run on a runner with the 'self-hosted' tag
+  script: # The sequence of commands to execute for this job
+    - echo "Deploying to production environment..."
+    - mkdir -p /home/production
+    - cd "$DEPLOYMENT_PATH_MAIN" # Change directory to the deployment path
+    - echo "Checking if the repository exists, if not clone it, otherwise pull..."
+    # Multi-line script block to handle git operations
+    - |
+      if [ -d ".git" ]; then # Check if a .git directory exists (repo already cloned)
+        echo "Repository already exists, pulling changes..."
+        git checkout main # Ensure we are on the main branch
+        git pull origin main # Pull the latest changes from the remote main branch
+      else
+        echo "Repository does not exist, cloning..."
+        # Clone the specific branch ('main') of the repository into the current directory
+        git clone -b main git@gitlab.com:$CI_PROJECT_PATH.git .
+      fi
+    - echo "Repository updated."
+    - cd "$DOCKER_COMPOSE_PATH_MAIN" # Change directory to where the docker-compose file is
+    - echo "Stopping existing Docker Compose services (if any)..."
+    # Stop and remove containers defined in the docker-compose file. '|| true' prevents failure if no containers are running.
+    - docker compose down || true
+    - echo "Building and starting Docker Compose services..."
+    # Build images (if necessary) and start services in detached mode (-d)
+    - docker compose up --build -d
+    - echo "Deployment to production environment complete."

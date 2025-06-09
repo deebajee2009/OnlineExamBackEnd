@@ -1,0 +1,72 @@
+version: '3'
+
+services:
+  hoosh_backend_app_prod: &django
+    restart: unless-stopped
+    build:
+      context: ../../
+      dockerfile: docker/development/Dockerfile
+    container_name: hoosh_backend_app_prod
+    volumes:
+      - drf_static_prod:/opt/app/static/
+      - drf_media_prod:/opt/app/media/
+    environment:
+      DJANGO_SETTINGS_MODULE=core.settings.production
+      # Database(PostgreSQL) configurations.
+      POSTGRES_DB=prod
+      POSTGRES_USER=prod
+      POSTGRES_PASSWORD=dev
+      POSTGRES_HOST=postgres_prod
+      POSTGRES_PORT=5434
+      # POSTGRES_DB=kish_141_db_production
+      # POSTGRES_USER=kish_141_production
+      # POSTGRES_PASSWORD=kish_141_production
+      # POSTGRES_HOST=
+      # POSTGRES_PORT=
+      SMS_API_KEY=
+      OTP_TEMPLATE=
+    ports:
+      - "4000:4000"
+    depends_on:
+      - postgres_prod
+    # env_file:
+    #   - ../../envs/development/.env
+    networks:
+      - prod_network
+    command: /start
+
+hoosh_celery_beat_prod:
+  <<: *django
+  container_name: hoosh_celery_beat_prod
+  restart: on-failure
+  ports: [ ]
+  networks:
+    - prod_network
+  command: /startbeat
+postgres_prod:
+  image: postgres:14
+  container_name: postgres_prod
+  restart: always
+  environment:
+    POSTGRES_DB: prod
+    POSTGRES_USER: prod
+    POSTGRES_PASSWORD: prod
+  networks:
+    - prod_network
+  ports:
+    - "5434:5434"
+  volumes:
+    - postgres_prod:/var/lib/postgresql/data
+
+networks:
+  prod_network:
+    external: true
+
+
+volumes:
+  postgres_prod:
+    name: postgres_prod
+  drf_static_prod:
+    name: drf_static_prod
+  drf_media_prod:
+    name: drf_media_prod

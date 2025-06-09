@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+echo "START script is running"
+
+python manage.py collectstatic --noinput
+
+
+
+# python manage.py makemigrations
+# python manage.py makemigrations --merge --noinput
+python manage.py migrate
+
+# Check for unapplied migrations
+# if python manage.py showmigrations | grep -q '\[ \]'; then
+#     echo "Applying migrations..."
+#     python manage.py makemigrations --merge --noinput
+#     python manage.py migrate
+# else
+#     echo "No migrations to apply."
+# fi
+
+python manage.py runserver 0.0.0.0:8000

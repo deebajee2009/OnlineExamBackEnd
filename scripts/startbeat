@@ -1,0 +1,6 @@
+#!/bin/bash
+set -o errexit
+set -o nounset
+
+rm -f './celerybeat.pid'
+exec celery -A core.celery_app beat -l INFO --pidfile=./celerybeat.pid
