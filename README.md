@@ -8,7 +8,9 @@
 * Data Analysis with Polars
 * Optimized Django ORM Query
 * Schedule Tasks in the Future With Celery
-* CI/CD with Docker and Nginx
+* CI/CD & Devops
+* Management Commands
+* Caching
 ## Stack
 * Backend: Django REST framework
 * Cache & Message Queue: Redis
